@@ -1,1 +1,217 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>上海心达 · 私有动态内容工作台</title><style>:root{--red:#E60012;--ink:#172033;--muted:#64748b;--line:#e5e7eb;--bg:#f6f7f9}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Microsoft YaHei,Arial,sans-serif}.wrap{max-width:1180px;margin:auto;padding:24px 18px 60px}header{background:#fff;border-bottom:1px solid var(--line)}.head{max-width:1180px;margin:auto;padding:18px;display:flex;align-items:center;gap:14px}.logo{background:var(--red);color:#fff;border-radius:10px;padding:12px;font-weight:800}.grow{flex:1}.pill,.btn,input{border:1px solid var(--line);background:#fff;border-radius:9px;padding:9px 12px}.btn{cursor:pointer}.btn.primary{background:var(--red);color:#fff;border-color:var(--red);font-weight:700}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}.card{background:#fff;border:1px solid var(--line);border-radius:15px;padding:17px}.card.active{border:2px solid var(--red)}.muted{color:var(--muted);font-size:13px}.red{color:var(--red)}h1{font-size:22px;margin:0}h2{font-size:18px;margin:26px 0 12px}.topic{font-size:17px;font-weight:800;line-height:1.55;margin:12px 0}.status{display:inline-block;border-radius:99px;padding:4px 9px;font-size:12px;background:#fff7ed;color:#b45309}.status.ok{background:#ecfdf5;color:#047857}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.notice{background:#fff5f5;border:1px solid #fecaca;padding:14px;border-radius:12px;line-height:1.7;font-size:13px}.hidden{display:none!important}.auth{max-width:420px;margin:70px auto}.auth input{width:100%;margin:6px 0}.error{color:#b91c1c;font-size:13px}.content{white-space:pre-wrap;line-height:1.8;background:#f8fafc;padding:12px;border-radius:8px;margin-top:10px}table{width:100%;border-collapse:collapse;background:#fff}th,td{text-align:left;border-bottom:1px solid var(--line);padding:11px;font-size:13px;vertical-align:top}th{background:#f8fafc}</style></head><body><header><div class="head"><div class="logo">XD</div><div><b>私有动态内容工作台</b><div class="muted">上海心达 · 仅登录后可访问</div></div><div class="grow"></div><span class="pill" id="userLabel"></span><button class="btn" id="logout">退出</button></div></header><main class="wrap"><section id="login" class="card auth"><h1>登录工作台</h1><p class="muted">只允许已创建的账号登录，未登录不能读取任何内容。</p><input id="email" type="email" placeholder="邮箱"><input id="password" type="password" placeholder="密码"><button class="btn primary" id="loginBtn">登录</button><div class="error" id="loginError"></div></section><section id="app" class="hidden"><div class="notice"><b>安全状态：</b>已登录；内容由 Supabase RLS 按账号隔离。公开网页只提供前端代码，不保存真实案例和高权限密钥。</div><h2>云端选题节点</h2><div id="cards" class="grid"></div><h2>当前节点内容</h2><div id="detail" class="card">请选择一个选题节点。</div><h2>四平台排期</h2><div class="card"><table><thead><tr><th>日期</th><th>主题与选题</th><th>公众号</th><th>小红书</th><th>抖音</th><th>视频号</th><th>状态</th></tr></thead><tbody id="table"></tbody></table></div></section></main><script type="module">import{createClient}from'https://esm.sh/@supabase/supabase-js@2';const supabase=createClient('https://nqfsumnoazsvtlsgkcmj.supabase.co','sb_publishable_wS74k3ScPmliT5bkfWZ_1w_TVYNagII');let rows=[],selected=null;const $=id=>document.getElementById(id);function statusClass(s){return s==='已发布'||s==='已复盘'?'status ok':'status'}function times(r){return['公众号','小红书','抖音','视频号'].map(p=>r.platform_content?.[p]?.time||'—')}function render(){ $('cards').innerHTML=rows.map(r=>`<div class="card ${selected?.id===r.id?'active':''}" data-id="${r.id}"><div class="row"><b>${r.weekday} · ${r.publish_date}</b><span class="${statusClass(r.status)}">${r.status}</span></div><div class="muted">${r.theme}</div><div class="topic">${r.topic}</div><div class="muted">${times(r).join(' / ')}</div></div>`).join('');document.querySelectorAll('[data-id]').forEach(x=>x.onclick=()=>{selected=rows.find(r=>r.id===x.dataset.id);render();detail()});$('table').innerHTML=rows.map(r=>`<tr><td>${r.publish_date}<br>${r.weekday}</td><td><b>${r.theme}</b><br>${r.topic}</td>${times(r).map(t=>`<td class="red">${t}</td>`).join('')}<td><span class="${statusClass(r.status)}">${r.status}</span></td></tr>`).join('')}function detail(){if(!selected)return;$('detail').innerHTML=`<div class="row"><b>${selected.topic}</b><span class="${statusClass(selected.status)}">${selected.status}</span></div><p class="muted">来源：${(selected.source_notes||[]).join('；')}</p><div class="row"><button class="btn primary" id="confirm">确认制作</button><button class="btn" id="copy">复制制作指令</button></div><div class="content">${selected.platform_content?.小红书?.text||'确认后，当前对话将制作四平台文案、配图、发布时间、互动话术和 Word/ZIP 发布包。'}</div>`;$('confirm').onclick=()=>update('已确认');$('copy').onclick=()=>navigator.clipboard.writeText(`确认制作 ${selected.publish_date} ${selected.topic}；四平台时间：${times(selected).join('、')}。生成文案、配图、互动话术及 Word/ZIP，不自动发布。`).then(()=>alert('制作指令已复制，请粘贴到当前对话。'))}async function update(status){const{error}=await supabase.from('content_nodes').update({status,updated_at:new Date().toISOString()}).eq('id',selected.id);if(error)return alert(error.message);await load()}async function load(){const{data,error}=await supabase.from('content_nodes').select('*').order('publish_date');if(error)return alert(error.message);rows=data||[];if(selected)selected=rows.find(r=>r.id===selected.id)||null;render();detail()}async function boot(){const{data:{session}}=await supabase.auth.getSession();if(session){$('login').classList.add('hidden');$('app').classList.remove('hidden');$('userLabel').textContent=session.user.email||'已登录';await load();supabase.channel('content_nodes_changes').on('postgres_changes',{event:'*',schema:'public',table:'content_nodes'},load).subscribe()}else $('login').classList.remove('hidden')}$('loginBtn').onclick=async()=>{const{error}=await supabase.auth.signInWithPassword({email:$('email').value,password:$('password').value});if(error)$('loginError').textContent=error.message;else boot()};$('logout').onclick=async()=>{await supabase.auth.signOut();location.reload()};boot();</script></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>上海心达 · 私有动态内容工作台</title>
+<style>
+:root{--red:#E60012;--ink:#172033;--muted:#64748b;--line:#e5e7eb;--bg:#f6f7f9}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Microsoft YaHei,Arial,sans-serif}
+.wrap{max-width:1180px;margin:auto;padding:24px 18px 60px}
+header{background:#fff;border-bottom:1px solid var(--line)}
+.head{max-width:1180px;margin:auto;padding:18px;display:flex;align-items:center;gap:14px}
+.logo{background:var(--red);color:#fff;border-radius:10px;padding:12px;font-weight:800}
+.grow{flex:1}
+.pill,.btn,input{border:1px solid var(--line);background:#fff;border-radius:9px;padding:9px 12px}
+.btn{cursor:pointer}
+.btn.primary{background:var(--red);color:#fff;border-color:var(--red);font-weight:700}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}
+.card{background:#fff;border:1px solid var(--line);border-radius:15px;padding:17px}
+.card.active{border:2px solid var(--red)}
+.muted{color:var(--muted);font-size:13px}
+.red{color:var(--red)}
+h1{font-size:22px;margin:0}
+h2{font-size:18px;margin:26px 0 12px}
+.topic{font-size:17px;font-weight:800;line-height:1.55;margin:12px 0}
+.status{display:inline-block;border-radius:99px;padding:4px 9px;font-size:12px;background:#fff7ed;color:#b45309}
+.status.ok{background:#ecfdf5;color:#047857}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.notice{background:#fff5f5;border:1px solid #fecaca;padding:14px;border-radius:12px;line-height:1.7;font-size:13px}
+.hidden{display:none!important}
+.auth{max-width:420px;margin:70px auto}
+.auth input{width:100%;margin:6px 0}
+.error{color:#b91c1c;font-size:13px}
+.content{white-space:pre-wrap;line-height:1.8;background:#f8fafc;padding:12px;border-radius:8px;margin-top:10px}
+table{width:100%;border-collapse:collapse;background:#fff}
+th,td{text-align:left;border-bottom:1px solid var(--line);padding:11px;font-size:13px;vertical-align:top}
+th{background:#f8fafc}
+.checks{display:flex;gap:16px;flex-wrap:wrap;margin:12px 0}
+.checks label{display:flex;gap:6px;align-items:center;font-size:14px;cursor:pointer}
+.checks input{width:auto;margin:0}
+.tags{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.note{background:#eef2ff;border:1px solid #c7d2fe;color:#1e3a8a;padding:11px 13px;border-radius:10px;font-size:13px;margin-top:12px;line-height:1.7}
+.kw{background:#fff;border:1px solid var(--line);border-radius:99px;padding:3px 10px;font-size:12px;color:var(--ink)}
+.gen{display:inline-block;border-radius:99px;padding:3px 9px;font-size:12px;background:#eef2ff;color:#3730a3}
+.gen.done{background:#ecfdf5;color:#047857}
+.gen.err{background:#fef2f2;color:#b91c1c}
+</style>
+</head>
+<body>
+<header><div class="head">
+  <div class="logo">XD</div>
+  <div><b>私有动态内容工作台</b><div class="muted">上海心达 · 仅登录后可访问</div></div>
+  <div class="grow"></div>
+  <span class="pill" id="userLabel"></span>
+  <button class="btn" id="logout">退出</button>
+</div></header>
+<main class="wrap">
+  <section id="login" class="card auth">
+    <h1>登录工作台</h1>
+    <p class="muted">只允许已创建的账号登录，未登录不能读取任何内容。</p>
+    <input id="email" type="email" placeholder="邮箱">
+    <input id="password" type="password" placeholder="密码">
+    <button class="btn primary" id="loginBtn">登录</button>
+    <div class="error" id="loginError"></div>
+  </section>
+  <section id="app" class="hidden">
+    <div class="notice">
+      <b>安全状态：</b>已登录；内容由 Supabase RLS 按账号隔离。公开网页只提供前端代码，不保存真实案例和高权限密钥。
+      选中选题后勾选要制作的平台，点击「确认制作」即可自动生成内容包（无弹窗，无需回到对话）。
+    </div>
+    <h2>云端选题节点</h2>
+    <div id="cards" class="grid"></div>
+    <h2>当前节点内容</h2>
+    <div id="detail" class="card">请选择一个选题节点。</div>
+    <h2>四平台排期</h2>
+    <div class="card"><table>
+      <thead><tr><th>日期</th><th>主题与选题</th><th>公众号</th><th>小红书</th><th>抖音</th><th>视频号</th><th>状态</th><th>生成</th></tr></thead>
+      <tbody id="table"></tbody>
+    </table></div>
+  </section>
+</main>
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+const supabase = createClient('https://nqfsumnoazsvtlsgkcmj.supabase.co', 'sb_publishable_wS74k3ScPmliT5bkfWZ_1w_TVYNagII');
+let rows = [], selected = null;
+const $ = id => document.getElementById(id);
+const PLATFORMS = ['视频号', '小红书', '抖音', '公众号'];
+
+function statusClass(s){ return (s === '已发布' || s === '已复盘') ? 'status ok' : 'status'; }
+function genLabel(s){
+  return ({ idle:'待生成', pending:'已申请', generating:'生成中', done:'已生成', error:'失败' })[s] || '待生成';
+}
+function genClass(s){ return s === 'done' ? 'gen done' : (s === 'error' ? 'gen err' : 'gen'); }
+function times(r){ return ['公众号','小红书','抖音','视频号'].map(p => r.platform_content?.[p]?.time || '—'); }
+function tags(r){ return (r.topic_tags || []).filter(Boolean); }
+
+function render(){
+  $('cards').innerHTML = rows.map(r => `<div class="card ${selected?.id === r.id ? 'active' : ''}" data-id="${r.id}">
+    <div class="row"><b>${r.weekday} · ${r.publish_date}</b><span class="${statusClass(r.status)}">${r.status}</span></div>
+    <div class="muted">${r.theme}</div>
+    <div class="topic">${r.topic}</div>
+    <div class="muted">${times(r).join(' / ')}</div>
+    <div class="row" style="margin-top:6px"><span class="${genClass(r.gen_status)}">生成：${genLabel(r.gen_status)}</span></div>
+  </div>`).join('');
+  document.querySelectorAll('[data-id]').forEach(x => x.onclick = () => { selected = rows.find(r => r.id === x.dataset.id); render(); detail(); });
+  $('table').innerHTML = rows.map(r => `<tr>
+    <td>${r.publish_date}<br>${r.weekday}</td>
+    <td><b>${r.theme}</b><br>${r.topic}</td>
+    ${times(r).map(t => `<td class="red">${t}</td>`).join('')}
+    <td><span class="${statusClass(r.status)}">${r.status}</span></td>
+    <td><span class="${genClass(r.gen_status)}">${genLabel(r.gen_status)}</span></td>
+  </tr>`).join('');
+}
+
+function detail(){
+  if(!selected) return;
+  const r = selected;
+  const submitted = !!r.gen_requested;
+  const kw = tags(r);
+  const kwHtml = kw.length
+    ? `<div class="row"><b>话题热点词：</b><div class="tags">${kw.map(t => `<span class="kw">${t}</span>`).join('')}</div></div>`
+    : `<p class="muted">话题热点词：暂未补充（每日自动化选题时会自动填充）</p>`;
+  const checksHtml = PLATFORMS.map(p => `<label><input type="checkbox" id="chk_${p}" ${submitted ? 'disabled' : ''} checked> ${p}</label>`).join('');
+  const btnLabel = submitted ? (r.gen_status === 'done' ? '已生成内容包' : '已提交生成') : '确认制作';
+  $('detail').innerHTML = `
+    <div class="row"><b>${r.topic}</b><span class="${statusClass(r.status)}">${r.status}</span></div>
+    <p class="muted">来源：${(r.source_notes || []).join('；')}</p>
+    ${kwHtml}
+    <div class="checks">${checksHtml}</div>
+    <div class="row">
+      <button class="btn primary" id="confirm" ${submitted ? 'disabled' : ''}>${btnLabel}</button>
+      <button class="btn" id="copy">复制制作指令</button>
+    </div>
+    <div class="note hidden" id="note"></div>
+    <div class="content">${r.platform_content?.小红书?.text || '确认后，自动化将自动制作四平台文案、配图、发布时间、互动话术和 Word/ZIP 发布包。'}</div>`;
+  if(!submitted){
+    $('confirm').onclick = requestGen;
+  }
+  $('copy').onclick = copyGen;
+}
+
+function setNote(msg){ const n = $('note'); if(n){ n.textContent = msg; n.classList.remove('hidden'); } }
+
+function checkedPlatforms(){
+  return PLATFORMS.filter(p => { const el = $('chk_' + p); return el && el.checked; });
+}
+
+async function requestGen(){
+  if(!selected){ setNote('请先点击选择一个选题节点'); return; }
+  const platforms = checkedPlatforms();
+  if(platforms.length === 0){ setNote('请至少勾选一个要制作的平台。'); return; }
+  const btn = $('confirm');
+  btn.disabled = true; btn.textContent = '提交中…';
+  const uid = (await supabase.auth.getUser()).data.user?.id;
+  const { data, error } = await supabase.from('content_nodes').update({
+    status: '已确认',
+    gen_requested: true,
+    gen_platforms: platforms,
+    gen_status: 'pending',
+    updated_at: new Date().toISOString()
+  }).eq('id', selected.id).eq('owner_id', uid).select('id,status,gen_status').single();
+  if(error){
+    btn.disabled = false; btn.textContent = '确认制作';
+    if(/column|gen_requested|gen_status|gen_platforms|topic_tags/i.test(error.message)){
+      setNote('数据库尚未升级：请先让管理员在 Supabase SQL Editor 执行「新增生成字段」迁移 SQL，再点击确认制作。');
+    } else {
+      setNote('同步失败：' + error.message);
+    }
+    return;
+  }
+  if(!data){ btn.disabled = false; btn.textContent = '确认制作'; setNote('未找到可更新的本人节点，请确认已用正确账号登录。'); return; }
+  await load();
+  setNote('已提交内容包生成请求（含 ' + platforms.join('、') + '）。自动化将在 1 小时内生成 Word/ZIP 与配图，状态会自动更新。');
+}
+
+function copyGen(){
+  if(!selected) return;
+  const platforms = checkedPlatforms();
+  const text = `确认制作 ${selected.publish_date} ${selected.topic}
+勾选平台：${platforms.join('、') || '（无）'}
+话题热点词：${(tags(selected).join('、') || '—')}
+四平台时间：${times(selected).join('、')}
+生成文案、配图、互动话术及 Word/ZIP，不自动发布。`;
+  navigator.clipboard.writeText(text).then(() => setNote('制作指令已复制到剪贴板。')).catch(() => setNote('复制失败，请手动选择。'));
+}
+
+async function load(){
+  const { data, error } = await supabase.from('content_nodes').select('*').order('publish_date');
+  if(error) return setNote(error.message);
+  rows = data || [];
+  if(selected) selected = rows.find(r => r.id === selected.id) || null;
+  render(); detail();
+}
+
+async function boot(){
+  const { data: { session } } = await supabase.auth.getSession();
+  if(session){
+    $('login').classList.add('hidden');
+    $('app').classList.remove('hidden');
+    $('userLabel').textContent = session.user.email || '已登录';
+    await load();
+    supabase.channel('content_nodes_changes').on('postgres_changes', { event: '*', schema: 'public', table: 'content_nodes' }, load).subscribe();
+  } else {
+    $('login').classList.remove('hidden');
+  }
+}
+$('loginBtn').onclick = async () => {
+  const { error } = await supabase.auth.signInWithPassword({ email: $('email').value, password: $('password').value });
+  if(error) $('loginError').textContent = error.message; else boot();
+};
+$('logout').onclick = async () => { await supabase.auth.signOut(); location.reload(); };
+boot();
+</script>
+</body>
+</html>
